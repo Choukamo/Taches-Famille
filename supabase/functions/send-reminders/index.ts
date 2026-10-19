@@ -111,7 +111,51 @@ async function sendTo(memberId: string, subs: Sub[], payload: Record<string, unk
   return sent;
 }
 
-async function process(onlyTaskId: string | null) {
+type Trade = {
+  id: string; from_member: string; to_member: string; requested: string[]; offered: string[]; message: string | null;
+  status: "pending" | "accepted" | "declined" | "cancelled"; notified_at: string | null; result_notified_at: string | null;
+};
+
+async function processTrades(onlyTradeId: string | null, members: Map<string, Member>, subs: Sub[], now: Date, summary: string[], logs: Record<string, unknown>[]) {
+  let q = admin.from("trades").select("*")
+    .or("and(status.eq.pending,notified_at.is.null),and(status.in.(accepted,declined),result_notified_at.is.null)");
+  if (onlyTradeId) q = q.eq("id", onlyTradeId);
+  const { data, error } = await q;
+  if (error) throw error;
+  const trades = (data ?? []) as Trade[];
+  if (!trades.length) return;
+  const ids = [...new Set(trades.flatMap((t) => [...t.requested, ...t.offered]))];
+  const { data: tasksRaw } = await admin.from("tasks").select("id, title").in("id", ids);
+  const titles = new Map<string, string>((tasksRaw ?? []).map((t: { id: string; title: string }) => [t.id, t.title]));
+  const list = (arr: string[]) => arr.map((i) => titles.get(i) ?? "?").join(", ");
+
+  for (const tr of trades) {
+    const from = members.get(tr.from_member), to = members.get(tr.to_member);
+    if (!from || !to) continue;
+    if (tr.status === "pending") {
+      if (!isAvailableNow(to, now)) continue;
+      const title = `${from.name} te propose un échange`;
+      const body = tr.offered.length
+        ? `${from.name} prend : ${list(tr.requested)}. En échange tu fais : ${list(tr.offered)}.`
+        : `${from.name} se propose de faire à ta place : ${list(tr.requested)}.`;
+      const sent = await sendTo(to.id, subs, { title, body, tag: `trade-${tr.id}`, url: `./?trade=${tr.id}` });
+      await admin.from("trades").update({ notified_at: now.toISOString() }).eq("id", tr.id);
+      logs.push({ member_id: to.id, task_id: null, kind: "trade", title, body });
+      summary.push(`trade ${to.name} (${sent} appareil(s))`);
+    } else {
+      if (!isAvailableNow(from, now)) continue;
+      const ok = tr.status === "accepted";
+      const title = ok ? `${to.name} a accepté ton échange` : `${to.name} a refusé ton échange`;
+      const body = ok ? `Tu fais maintenant : ${list(tr.requested)}.` : `Pas d'échange pour : ${list(tr.requested)}.`;
+      const sent = await sendTo(from.id, subs, { title, body, tag: `trade-${tr.id}`, url: `./` });
+      await admin.from("trades").update({ result_notified_at: now.toISOString() }).eq("id", tr.id);
+      logs.push({ member_id: from.id, task_id: null, kind: ok ? "trade_accepted" : "trade_declined", title, body });
+      summary.push(`trade-${tr.status} ${from.name} (${sent} appareil(s))`);
+    }
+  }
+}
+
+async function process(onlyTaskId: string | null, onlyTradeId: string | null = null) {
   const now = new Date();
   const { date: today } = parisParts(now);
 
@@ -186,6 +230,8 @@ async function process(onlyTaskId: string | null) {
     }
   }
 
+  await processTrades(onlyTradeId, members, subs, now, summary, logs);
+
   if (logs.length) await admin.from("notifications").insert(logs);
   return summary;
 }
@@ -195,6 +241,7 @@ Deno.serve(async (req) => {
   try {
     const cronHeader = req.headers.get("x-cron-secret");
     let onlyTaskId: string | null = null;
+    let onlyTradeId: string | null = null;
 
     if (CRON_SECRET && cronHeader === CRON_SECRET) {
       // appel planifié : tout traiter
@@ -206,11 +253,12 @@ Deno.serve(async (req) => {
       const { data: dev } = await admin.from("devices").select("member_id").eq("auth_uid", user.id).maybeSingle();
       if (!dev) return new Response(JSON.stringify({ error: "Pas membre" }), { status: 403, headers: cors });
       const body = await req.json().catch(() => ({}));
-      if (!body.task_id) return new Response(JSON.stringify({ error: "task_id manquant" }), { status: 400, headers: cors });
-      onlyTaskId = String(body.task_id);
+      if (!body.task_id && !body.trade_id) return new Response(JSON.stringify({ error: "task_id ou trade_id manquant" }), { status: 400, headers: cors });
+      if (body.task_id) onlyTaskId = String(body.task_id);
+      if (body.trade_id) onlyTradeId = String(body.trade_id);
     }
 
-    const summary = await process(onlyTaskId);
+    const summary = await process(onlyTaskId, onlyTradeId);
     return new Response(JSON.stringify({ ok: true, summary }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);

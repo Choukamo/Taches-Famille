@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BellOff, BellRing } from 'lucide-react'
-import type { Member, Task } from '../lib/types'
+import type { Member, Task, Trade } from '../lib/types'
+import { TradeCard } from '../components/TradeCard'
 import { TaskCard } from '../components/TaskCard'
 import { Avatar } from '../components/Avatar'
 import type { PushState } from '../lib/push'
@@ -9,6 +10,7 @@ type Props = {
   me: Member
   members: Map<string, Member>
   tasks: Task[]
+  trades: Trade[]
   pushState: PushState
   onEnablePush: () => void
   onComplete: (t: Task) => void
@@ -16,9 +18,11 @@ type Props = {
   onDelete: (t: Task) => void
   onReplay: (t: Task) => void
   onGoSettings: () => void
+  onRespondTrade: (t: Trade, accept: boolean) => void
+  onCancelTrade: (t: Trade) => void
 }
 
-export function TaskList({ me, members, tasks, pushState, onEnablePush, onComplete, onReopen, onDelete, onReplay, onGoSettings }: Props) {
+export function TaskList({ me, members, tasks, trades, pushState, onEnablePush, onComplete, onReopen, onDelete, onReplay, onGoSettings, onRespondTrade, onCancelTrade }: Props) {
   const [showAllDone, setShowAllDone] = useState(false)
   const open = tasks.filter((t) => t.status === 'open')
   const mine = open.filter((t) => t.task_assignees.some((a) => a.member_id === me.id))
@@ -27,6 +31,11 @@ export function TaskList({ me, members, tasks, pushState, onEnablePush, onComple
   const doneShown = showAllDone ? done : done.slice(0, 5)
 
   const common = { members, meId: me.id, onComplete, onReopen, onDelete, onReplay }
+  const tasksMap = new Map(tasks.map((t) => [t.id, t]))
+  const [dayAgo] = useState(() => Date.now() - 24 * 3600 * 1000)
+  const shownTrades = trades.filter((tr) =>
+    (tr.status === 'pending' && (tr.to_member === me.id || tr.from_member === me.id)) ||
+    ((tr.status === 'accepted' || tr.status === 'declined') && tr.from_member === me.id && new Date(tr.responded_at ?? tr.created_at).getTime() > dayAgo))
 
   return (
     <div className="screen stack fade-in">
@@ -67,6 +76,9 @@ export function TaskList({ me, members, tasks, pushState, onEnablePush, onComple
           </div>
         </div>
       )}
+
+      {shownTrades.length > 0 && <p className="list-title">Échanges</p>}
+      {shownTrades.map((tr) => <TradeCard key={tr.id} trade={tr} members={members} tasks={tasksMap} meId={me.id} onRespond={onRespondTrade} onCancel={onCancelTrade} />)}
 
       {mine.length > 0 && <p className="list-title">Pour toi</p>}
       {mine.map((t) => <TaskCard key={t.id} task={t} {...common} />)}

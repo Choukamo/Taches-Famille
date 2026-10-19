@@ -34,3 +34,17 @@ export type Task = {
 }
 
 export type LeaderRow = { member_id: string; total: number; this_month: number; this_week: number }
+
+export type Trade = {
+  id: string
+  from_member: string
+  to_member: string
+  requested: string[]
+  offered: string[]
+  message: string | null
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled'
+  notified_at: string | null
+  result_notified_at: string | null
+  created_at: string
+  responded_at: string | null
+}

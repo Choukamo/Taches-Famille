@@ -110,3 +110,17 @@ textarea.input { min-height: 72px; resize: vertical; }
 .spinner { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .center { display: flex; align-items: center; justify-content: center; min-height: 60vh; flex-direction: column; gap: 14px; }
+
+/* Échanges */
+.sheet.left { text-align: left; align-items: stretch; max-height: calc(100vh - 40px); overflow-y: auto; }
+.sheet.left h2 { font-size: 19px; }
+.pick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 14px; border: 1.5px solid var(--line); background: #fff; text-align: left; }
+.pick.on { border-color: var(--accent); background: var(--accent-soft); }
+.pick .box { width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: #fff; color: #fff; }
+.pick .box.on { background: var(--accent); border-color: var(--accent); }
+.trade-lines { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; background: #faf6f0; border-radius: 14px; padding: 10px 12px; }
+.trade-lines ul { margin: 4px 0 0; padding-left: 16px; font-weight: 700; font-size: 14px; }
+.trade-lines li + li { margin-top: 2px; }
+.mini-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mini-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: #faf6f0; font-weight: 700; font-size: 14px; }
+.nav button { min-width: 0; padding: 6px 6px; flex: 1; }
