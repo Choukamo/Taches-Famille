@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ListChecks, Plus, Trophy, UserRound, Users } from 'lucide-react'
 import { supabase, ensureSession } from './lib/supabase'
-import type { Member, Task, Trade } from './lib/types'
+import type { Member, Preset, Recurrence, Task, Trade } from './lib/types'
 import { Family } from './screens/Family'
 import { TradeSheet } from './components/TradeSheet'
 import { Join } from './screens/Join'
@@ -21,6 +21,8 @@ export default function App() {
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
+  const [presets, setPresets] = useState<Preset[]>([])
+  const [recurrences, setRecurrences] = useState<Recurrence[]>([])
   const [tradeWith, setTradeWith] = useState<Member | null>(null)
   const [tab, setTab] = useState<Tab>('tasks')
   const [pushState, setPushState] = useState<PushState>('off')
@@ -30,14 +32,18 @@ export default function App() {
   const membersMap = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
 
   const loadAll = useCallback(async () => {
-    const [{ data: ms }, { data: ts }, { data: trs }] = await Promise.all([
+    const [{ data: ms }, { data: ts }, { data: trs }, { data: ps }, { data: rs }] = await Promise.all([
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('tasks').select('*, task_assignees(*)').order('scheduled_date').order('created_at'),
       supabase.from('trades').select('*').order('created_at', { ascending: false }),
+      supabase.from('task_presets').select('*').order('sort_order').order('created_at'),
+      supabase.from('recurrences').select('*').eq('active', true).order('at_time').order('created_at'),
     ])
     setMembers((ms ?? []) as Member[])
     setTasks((ts ?? []) as Task[])
     setTrades((trs ?? []) as Trade[])
+    setPresets((ps ?? []) as Preset[])
+    setRecurrences((rs ?? []) as Recurrence[])
     setRefreshKey((k) => k + 1)
   }, [])
 
@@ -70,6 +76,8 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => loadAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => loadAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, () => loadAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_presets' }, () => loadAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurrences' }, () => loadAll())
       .subscribe()
     const onVisible = () => { if (document.visibilityState === 'visible') { loadAll(); refreshPush() } }
     document.addEventListener('visibilitychange', onVisible)
@@ -132,6 +140,12 @@ export default function App() {
     else supabase.functions.invoke('send-reminders', { body: { trade_id: t.id } }).catch(() => {})
     loadAll()
   }
+  const deleteRecurrence = async (r: Recurrence) => {
+    if (!confirm(`Arrêter « ${r.title} » (${r.mode === 'roulette' ? 'roulette' : 'direct'}) ? Les tâches déjà créées restent.`)) return
+    const { error } = await supabase.rpc('delete_recurrence', { p_id: r.id })
+    if (error) alert(error.message)
+    loadAll()
+  }
   const cancelTrade = async (t: Trade) => {
     const { error } = await supabase.rpc('cancel_trade', { p_trade: t.id })
     if (error) alert(error.message)
@@ -166,8 +180,8 @@ export default function App() {
           onComplete={complete} onReopen={reopen} onDelete={remove} onReplay={replay} onGoSettings={() => setTab('me')}
           onRespondTrade={respondTrade} onCancelTrade={cancelTrade} />
       )}
-      {tab === 'family' && <Family me={me} members={members} tasks={tasks} onTrade={setTradeWith} />}
-      {tab === 'new' && <NewTask me={me} members={members} onCreated={onCreated} />}
+      {tab === 'family' && <Family me={me} members={members} tasks={tasks} recurrences={recurrences} onTrade={setTradeWith} onDeleteRecurrence={deleteRecurrence} />}
+      {tab === 'new' && <NewTask me={me} members={members} presets={presets} onCreated={onCreated} onRecurrenceCreated={() => { loadAll(); setTab('family') }} />}
       {tab === 'board' && <Leaderboard members={membersMap} refreshKey={refreshKey} />}
       {tab === 'me' && (
         <Settings me={me} pushState={pushState} onEnablePush={onEnablePush} onDisablePush={onDisablePush}

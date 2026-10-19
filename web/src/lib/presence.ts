@@ -54,3 +54,13 @@ export const INTERVALS: { value: number; label: string }[] = [
   { value: 240, label: '4 h' },
   { value: 1440, label: '1 fois par jour' },
 ]
+
+export const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+export function labelDays(days: number[]): string {
+  const d = [...days].sort((a, b) => a - b)
+  if (d.length === 7) return 'tous les jours'
+  if (d.join() === '1,2,3,4,5') return 'en semaine'
+  if (d.join() === '6,7') return 'le week-end'
+  return d.map((x) => DAY_LABELS[x - 1]).join(', ')
+}

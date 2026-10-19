@@ -30,6 +30,7 @@ export type Task = {
   done_by: string | null
   done_at: string | null
   created_at: string
+  recurrence_id?: string | null
   task_assignees: Assignee[]
 }
 
@@ -47,4 +48,22 @@ export type Trade = {
   result_notified_at: string | null
   created_at: string
   responded_at: string | null
+}
+
+export type Preset = { id: string; title: string; sort_order: number }
+
+export type Recurrence = {
+  id: string
+  title: string
+  note: string | null
+  created_by: string
+  mode: 'direct' | 'roulette'
+  members: string[]
+  pick_count: number
+  interval_minutes: number
+  days: number[]
+  at_time: string
+  active: boolean
+  last_spawned_date: string | null
+  created_at: string
 }

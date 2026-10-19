@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
-import { Dices, UserCheck, Minus, Plus } from 'lucide-react'
+import { Dices, UserCheck, Minus, Plus, Repeat, X, BookmarkPlus, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Member, Task } from '../lib/types'
+import type { Member, Preset, Task } from '../lib/types'
 import { Avatar } from '../components/Avatar'
-import { INTERVALS, addDays, isPresentOn, todayParis } from '../lib/presence'
+import { DAY_LABELS, INTERVALS, addDays, isPresentOn, todayParis } from '../lib/presence'
 
 type Props = {
   me: Member
   members: Member[]
+  presets: Preset[]
   onCreated: (task: Task) => void
+  onRecurrenceCreated: () => void
 }
 
-export function NewTask({ me, members, onCreated }: Props) {
+export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }: Props) {
   const today = todayParis()
   const [title, setTitle] = useState('')
   const [note, setNote] = useState('')
@@ -23,13 +25,30 @@ export function NewTask({ me, members, onCreated }: Props) {
   const [interval, setInterval] = useState(60)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [repeat, setRepeat] = useState(false)
+  const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7])
+  const [atTime, setAtTime] = useState('20:00')
+  const [editPresets, setEditPresets] = useState(false)
 
   const date = dateMode === 'today' ? today : dateMode === 'tomorrow' ? addDays(today, 1) : customDate
-  const presence = useMemo(() => new Map(members.map((m) => [m.id, isPresentOn(m, date)])), [members, date])
+  const presence = useMemo(() => new Map(members.map((m) => [m.id, repeat || isPresentOn(m, date)])), [members, date, repeat])
   const selectable = picked.filter((id) => presence.get(id))
   const minNeeded = mode === 'roulette' ? 2 : 1
   const canSubmit = title.trim().length > 0 && selectable.length >= minNeeded && !busy
     && (mode !== 'roulette' || (pickCount >= 1 && pickCount < selectable.length))
+    && (!repeat || (days.length >= 1 && /^\d{2}:\d{2}$/.test(atTime)))
+  const titleIsPreset = presets.some((p) => p.title.toLowerCase() === title.trim().toLowerCase())
+
+  const toggleDay = (d: number) => setDays((ds) => (ds.includes(d) ? ds.filter((x) => x !== d) : [...ds, d]))
+  const savePreset = async () => {
+    const { error } = await supabase.rpc('add_preset', { p_title: title.trim() })
+    if (error) setError(error.message)
+  }
+  const removePreset = async (p: Preset) => {
+    if (!confirm(`Retirer « ${p.title} » de la liste ?`)) return
+    const { error } = await supabase.rpc('delete_preset', { p_id: p.id })
+    if (error) setError(error.message)
+  }
 
   const toggle = (id: string) => {
     if (!presence.get(id)) return
@@ -40,6 +59,23 @@ export function NewTask({ me, members, onCreated }: Props) {
     if (!canSubmit) return
     setBusy(true)
     setError(null)
+    if (repeat) {
+      const { error } = await supabase.rpc('create_recurrence', {
+        p_title: title.trim(),
+        p_note: note.trim() || null,
+        p_mode: mode,
+        p_members: selectable,
+        p_pick_count: mode === 'roulette' ? pickCount : 1,
+        p_interval_minutes: interval,
+        p_days: days,
+        p_at_time: atTime,
+      })
+      setBusy(false)
+      if (error) { setError(error.message); return }
+      setTitle(''); setNote(''); setPicked([]); setMode('direct'); setPickCount(1); setInterval(60); setRepeat(false); setDays([1, 2, 3, 4, 5, 6, 7]); setAtTime('20:00')
+      onRecurrenceCreated()
+      return
+    }
     const { data, error } = await supabase.rpc('create_task', {
       p_title: title.trim(),
       p_note: note.trim() || null,
@@ -71,7 +107,31 @@ export function NewTask({ me, members, onCreated }: Props) {
 
       <div className="field">
         <label>Quoi ?</label>
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Sortir les poubelles" autoFocus />
+        {presets.length > 0 && (
+          <div className="chips">
+            {presets.map((p) => (
+              <button key={p.id} className={`chip sm preset ${title === p.title ? 'on' : ''}`}
+                onClick={() => (editPresets ? removePreset(p) : setTitle(p.title))}>
+                {editPresets && <X size={14} />}{p.title}
+              </button>
+            ))}
+            <button className={`chip sm ghost ${editPresets ? 'on' : ''}`} onClick={() => setEditPresets((v) => !v)} title="Modifier la liste">
+              <Pencil size={14} />{editPresets ? 'Terminé' : 'Modifier'}
+            </button>
+          </div>
+        )}
+        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ou écris autre chose…" />
+        {title.trim().length > 1 && !titleIsPreset && (
+          <button className="link-btn" onClick={savePreset}><BookmarkPlus size={16} /> Garder « {title.trim()} » dans la liste</button>
+        )}
+      </div>
+
+      <div className="field">
+        <label>Se répète ?</label>
+        <div className="seg">
+          <button className={!repeat ? 'on' : ''} onClick={() => setRepeat(false)}>Une seule fois</button>
+          <button className={repeat ? 'on' : ''} onClick={() => setRepeat(true)}><Repeat size={16} style={{ verticalAlign: -3 }} /> Régulièrement</button>
+        </div>
       </div>
 
       <div className="field">
@@ -79,6 +139,22 @@ export function NewTask({ me, members, onCreated }: Props) {
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex. Le bac jaune, avant 19h" />
       </div>
 
+      {repeat ? (
+        <div className="field">
+          <label>Quels jours, à quelle heure ?</label>
+          <div className="chips">
+            {DAY_LABELS.map((l, i) => (
+              <button key={l} className={`chip sm day ${days.includes(i + 1) ? 'on' : ''}`} onClick={() => toggleDay(i + 1)}>{l}</button>
+            ))}
+            <button className="chip sm ghost" onClick={() => setDays([1, 2, 3, 4, 5, 6, 7])}>Tous les jours</button>
+          </div>
+          <div className="row">
+            <span className="small muted">La tâche est créée chaque jour coché à</span>
+            <input className="input" type="time" value={atTime} onChange={(e) => setAtTime(e.target.value)} style={{ width: 'auto' }} />
+          </div>
+          <p className="small muted">Si quelqu'un n'est pas à la maison cette semaine-là, il est sauté automatiquement.</p>
+        </div>
+      ) : (
       <div className="field">
         <label>Quand ?</label>
         <div className="seg">
@@ -90,6 +166,7 @@ export function NewTask({ me, members, onCreated }: Props) {
           <input className="input" type="date" min={today} value={customDate} onChange={(e) => setCustomDate(e.target.value || today)} />
         )}
       </div>
+      )}
 
       <div className="field">
         <label>Comment choisir ?</label>
@@ -119,7 +196,7 @@ export function NewTask({ me, members, onCreated }: Props) {
             )
           })}
         </div>
-        {members.some((m) => !presence.get(m.id)) && (
+        {!repeat && members.some((m) => !presence.get(m.id)) && (
           <p className="small muted">Les prénoms barrés ne sont pas à la maison cette semaine-là.</p>
         )}
       </div>
@@ -151,7 +228,7 @@ export function NewTask({ me, members, onCreated }: Props) {
       {error && <div className="banner error">{error}</div>}
 
       <button className="btn big block" disabled={!canSubmit} onClick={submit}>
-        {busy ? 'Envoi…' : mode === 'roulette' ? 'Lancer la roulette' : 'Envoyer la tâche'}
+        {busy ? 'Envoi…' : repeat ? 'Programmer la tâche' : mode === 'roulette' ? 'Lancer la roulette' : 'Envoyer la tâche'}
       </button>
     </div>
   )

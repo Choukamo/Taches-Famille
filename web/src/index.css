@@ -124,3 +124,9 @@ textarea.input { min-height: 72px; resize: vertical; }
 .mini-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .mini-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: #faf6f0; font-weight: 700; font-size: 14px; }
 .nav button { min-width: 0; padding: 6px 6px; flex: 1; }
+
+/* Cases toutes prêtes + répétition */
+.chip.preset { padding: 6px 12px; }
+.chip.day { padding: 6px 11px; min-width: 44px; justify-content: center; }
+.chip.ghost { border-style: dashed; color: var(--muted); padding: 6px 12px; }
+.link-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-ink); font-weight: 700; font-size: 14px; padding: 4px 0; text-align: left; }

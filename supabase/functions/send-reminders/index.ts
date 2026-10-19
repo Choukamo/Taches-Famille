@@ -156,6 +156,11 @@ async function processTrades(onlyTradeId: string | null, members: Map<string, Me
 }
 
 async function process(onlyTaskId: string | null, onlyTradeId: string | null = null) {
+  if (!onlyTaskId && !onlyTradeId) {
+    const { data: spawned, error: se } = await admin.rpc("spawn_due_recurrences");
+    if (se) console.error("spawn_due_recurrences", se);
+    else if ((spawned ?? []).length) console.log(`récurrences : ${(spawned as unknown[]).length} tâche(s) créée(s)`);
+  }
   const now = new Date();
   const { date: today } = parisParts(now);
 
