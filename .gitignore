@@ -1,0 +1,6 @@
+node_modules/
+web/dist/
+web/.env.development
+web/.env.local
+.DS_Store
+supabase/.temp/

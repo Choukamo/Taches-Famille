@@ -1,0 +1,4 @@
+project_id = "taches-famille"
+
+[functions.send-reminders]
+verify_jwt = false
