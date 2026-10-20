@@ -29,6 +29,7 @@ export function TaskList({ me, members, tasks, trades, pushState, onEnablePush, 
   const others = open.filter((t) => !t.task_assignees.some((a) => a.member_id === me.id))
   const done = tasks.filter((t) => t.status === 'done').sort((a, b) => (b.done_at ?? '').localeCompare(a.done_at ?? ''))
   const doneShown = showAllDone ? done : done.slice(0, 5)
+  const expired = tasks.filter((t) => t.status === 'expired').sort((a, b) => (b.expired_at ?? '').localeCompare(a.expired_at ?? '')).slice(0, 5)
 
   const common = { members, meId: me.id, onComplete, onReopen, onDelete, onReplay }
   const tasksMap = new Map(tasks.map((t) => [t.id, t]))
@@ -87,6 +88,9 @@ export function TaskList({ me, members, tasks, trades, pushState, onEnablePush, 
       {others.map((t) => <TaskCard key={t.id} task={t} {...common} />)}
 
       {open.length === 0 && <div className="empty">Aucune tâche en cours. Tout est fait, bravo !</div>}
+
+      {expired.length > 0 && <p className="list-title">Ratées</p>}
+      {expired.map((t) => <TaskCard key={t.id} task={t} {...common} />)}
 
       {done.length > 0 && <p className="list-title">Terminées</p>}
       {doneShown.map((t) => <TaskCard key={t.id} task={t} {...common} />)}

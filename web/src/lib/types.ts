@@ -26,7 +26,9 @@ export type Task = {
   interval_minutes: number
   mode: 'direct' | 'roulette'
   candidates: string[]
-  status: 'open' | 'done'
+  status: 'open' | 'done' | 'expired'
+  deadline?: string | null
+  expired_at?: string | null
   done_by: string | null
   done_at: string | null
   created_at: string
@@ -63,6 +65,7 @@ export type Recurrence = {
   interval_minutes: number
   days: number[]
   at_time: string
+  deadline_time: string | null
   active: boolean
   last_spawned_date: string | null
   created_at: string

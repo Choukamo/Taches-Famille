@@ -64,3 +64,22 @@ export function labelDays(days: number[]): string {
   if (d.join() === '6,7') return 'le week-end'
   return d.map((x) => DAY_LABELS[x - 1]).join(', ')
 }
+
+export function parisToIso(date: string, time: string): string {
+  const guess = new Date(`${date}T${time}:00Z`)
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(guess)
+  const p: Record<string, string> = {}
+  for (const x of parts) p[x.type] = x.value
+  const asParis = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute)
+  return new Date(guess.getTime() - (asParis - guess.getTime())).toISOString()
+}
+
+export function labelDeadline(iso: string): string {
+  const d = new Date(iso)
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(d)
+  const time = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }).format(d).replace(':', 'h')
+  const today = todayParis()
+  const when = day === today ? "aujourd'hui" : day === addDays(today, 1) ? 'demain'
+    : new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' }).format(d)
+  return `${when} ${time}`
+}

@@ -182,7 +182,7 @@ export default function App() {
       )}
       {tab === 'family' && <Family me={me} members={members} tasks={tasks} recurrences={recurrences} onTrade={setTradeWith} onDeleteRecurrence={deleteRecurrence} />}
       {tab === 'new' && <NewTask me={me} members={members} presets={presets} onCreated={onCreated} onRecurrenceCreated={() => { loadAll(); setTab('family') }} />}
-      {tab === 'board' && <Leaderboard members={membersMap} refreshKey={refreshKey} />}
+      {tab === 'board' && <Leaderboard members={membersMap} tasks={tasks} refreshKey={refreshKey} />}
       {tab === 'me' && (
         <Settings me={me} pushState={pushState} onEnablePush={onEnablePush} onDisablePush={onDisablePush}
           onSaved={(m) => { setMe(m); loadAll() }} onLeave={leave} />

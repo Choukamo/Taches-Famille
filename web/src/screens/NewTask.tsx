@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Dices, UserCheck, Minus, Plus, Repeat, X, BookmarkPlus, Pencil } from 'lucide-react'
+import { Dices, UserCheck, Minus, Plus, Repeat, X, BookmarkPlus, Pencil, Hourglass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Member, Preset, Task } from '../lib/types'
 import { Avatar } from '../components/Avatar'
-import { DAY_LABELS, INTERVALS, addDays, isPresentOn, todayParis } from '../lib/presence'
+import { DAY_LABELS, INTERVALS, addDays, isPresentOn, parisToIso, todayParis } from '../lib/presence'
 
 type Props = {
   me: Member
@@ -29,6 +29,9 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7])
   const [atTime, setAtTime] = useState('20:00')
   const [editPresets, setEditPresets] = useState(false)
+  const [hasDeadline, setHasDeadline] = useState(false)
+  const [deadlineDate, setDeadlineDate] = useState<string | null>(null)
+  const [deadlineTime, setDeadlineTime] = useState('21:00')
 
   const date = dateMode === 'today' ? today : dateMode === 'tomorrow' ? addDays(today, 1) : customDate
   const presence = useMemo(() => new Map(members.map((m) => [m.id, repeat || isPresentOn(m, date)])), [members, date, repeat])
@@ -37,6 +40,9 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
   const canSubmit = title.trim().length > 0 && selectable.length >= minNeeded && !busy
     && (mode !== 'roulette' || (pickCount >= 1 && pickCount < selectable.length))
     && (!repeat || (days.length >= 1 && /^\d{2}:\d{2}$/.test(atTime)))
+    && (!hasDeadline || (/^\d{2}:\d{2}$/.test(deadlineTime) && (!repeat || deadlineTime > atTime)))
+  const dlDate = deadlineDate ?? date
+  const deadlineIso = hasDeadline && !repeat ? parisToIso(dlDate < date ? date : dlDate, deadlineTime) : null
   const titleIsPreset = presets.some((p) => p.title.toLowerCase() === title.trim().toLowerCase())
 
   const toggleDay = (d: number) => setDays((ds) => (ds.includes(d) ? ds.filter((x) => x !== d) : [...ds, d]))
@@ -69,10 +75,11 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
         p_interval_minutes: interval,
         p_days: days,
         p_at_time: atTime,
+        p_deadline_time: hasDeadline ? deadlineTime : null,
       })
       setBusy(false)
       if (error) { setError(error.message); return }
-      setTitle(''); setNote(''); setPicked([]); setMode('direct'); setPickCount(1); setInterval(60); setRepeat(false); setDays([1, 2, 3, 4, 5, 6, 7]); setAtTime('20:00')
+      setTitle(''); setNote(''); setPicked([]); setMode('direct'); setPickCount(1); setInterval(60); setRepeat(false); setDays([1, 2, 3, 4, 5, 6, 7]); setAtTime('20:00'); setHasDeadline(false); setDeadlineDate(null)
       onRecurrenceCreated()
       return
     }
@@ -84,6 +91,7 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
       p_mode: mode,
       p_members: selectable,
       p_pick_count: mode === 'roulette' ? pickCount : 1,
+      p_deadline: deadlineIso,
     })
     if (error) {
       setBusy(false)
@@ -95,7 +103,7 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
     // Prévenir tout de suite (sans bloquer l'interface)
     supabase.functions.invoke('send-reminders', { body: { task_id: created.id } }).catch(() => {})
     setBusy(false)
-    setTitle(''); setNote(''); setPicked([]); setMode('direct'); setPickCount(1); setInterval(60); setDateMode('today')
+    setTitle(''); setNote(''); setPicked([]); setMode('direct'); setPickCount(1); setInterval(60); setDateMode('today'); setHasDeadline(false); setDeadlineDate(null)
     onCreated((full as Task) ?? { ...created, task_assignees: [] })
   }
 
@@ -212,6 +220,25 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
           </div>
         </div>
       )}
+
+      <div className="field">
+        <label>Date limite ?</label>
+        <div className="seg">
+          <button className={!hasDeadline ? 'on' : ''} onClick={() => setHasDeadline(false)}>Pas de limite</button>
+          <button className={hasDeadline ? 'on' : ''} onClick={() => setHasDeadline(true)}><Hourglass size={16} style={{ verticalAlign: -3 }} /> Avec limite</button>
+        </div>
+        {hasDeadline && (
+          <>
+            <div className="row wrap" style={{ gap: 8 }}>
+              {!repeat && <input className="input" type="date" min={date} value={dlDate < date ? date : dlDate} onChange={(e) => setDeadlineDate(e.target.value || null)} style={{ flex: 1 }} />}
+              {repeat && <span className="small muted">Le même jour, avant</span>}
+              <input className="input" type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} style={{ width: 'auto' }} />
+            </div>
+            {repeat && deadlineTime <= atTime && <p className="small" style={{ color: '#b42318' }}>La limite doit être après {atTime.replace(':', 'h')}.</p>}
+            <p className="small muted">Pas faite à l'heure = tâche ratée, impossible à valider, et elle compte au tableau de la honte.</p>
+          </>
+        )}
+      </div>
 
       <div className="field">
         <label>Rappel tant que ce n'est pas fait</label>

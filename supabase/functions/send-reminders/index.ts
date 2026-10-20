@@ -116,6 +116,27 @@ type Trade = {
   status: "pending" | "accepted" | "declined" | "cancelled"; notified_at: string | null; result_notified_at: string | null;
 };
 
+async function processExpired(members: Map<string, Member>, subs: Sub[], now: Date, summary: string[], logs: Record<string, unknown>[]) {
+  const { data, error } = await admin.from("tasks").select("*, task_assignees(*)")
+    .eq("status", "expired").is("expired_notified_at", null);
+  if (error) throw error;
+  for (const t of (data ?? []) as Task[]) {
+    const who = t.task_assignees.map((a) => a.member_id);
+    const names = listNames(who, members);
+    for (const m of members.values()) {
+      const mine = who.includes(m.id);
+      const title = mine ? "Trop tard, tâche ratée" : `${names} n'a pas fait sa tâche`;
+      const body = mine
+        ? `« ${t.title} » n'a pas été faite avant la limite. Direction le tableau de la honte…`
+        : `« ${t.title} » est ratée. C'est noté au tableau de la honte.`;
+      const sent = await sendTo(m.id, subs, { title, body, tag: `expired-${t.id}`, url: "./" });
+      logs.push({ member_id: m.id, task_id: t.id, kind: "expired", title, body });
+      summary.push(`ratée ${m.name} (${sent} appareil(s))`);
+    }
+    await admin.from("tasks").update({ expired_notified_at: now.toISOString() }).eq("id", t.id);
+  }
+}
+
 async function processTrades(onlyTradeId: string | null, members: Map<string, Member>, subs: Sub[], now: Date, summary: string[], logs: Record<string, unknown>[]) {
   let q = admin.from("trades").select("*")
     .or("and(status.eq.pending,notified_at.is.null),and(status.in.(accepted,declined),result_notified_at.is.null)");
@@ -161,6 +182,8 @@ async function process(onlyTaskId: string | null, onlyTradeId: string | null = n
     if (se) console.error("spawn_due_recurrences", se);
     else if ((spawned ?? []).length) console.log(`récurrences : ${(spawned as unknown[]).length} tâche(s) créée(s)`);
   }
+  const { error: ee } = await admin.rpc("expire_due_tasks");
+  if (ee) console.error("expire_due_tasks", ee);
   const now = new Date();
   const { date: today } = parisParts(now);
 
@@ -236,6 +259,7 @@ async function process(onlyTaskId: string | null, onlyTradeId: string | null = n
   }
 
   await processTrades(onlyTradeId, members, subs, now, summary, logs);
+  await processExpired(members, subs, now, summary, logs);
 
   if (logs.length) await admin.from("notifications").insert(logs);
   return summary;

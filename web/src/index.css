@@ -130,3 +130,9 @@ textarea.input { min-height: 72px; resize: vertical; }
 .chip.day { padding: 6px 11px; min-width: 44px; justify-content: center; }
 .chip.ghost { border-style: dashed; color: var(--muted); padding: 6px 12px; }
 .link-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-ink); font-weight: 700; font-size: 14px; padding: 4px 0; text-align: left; }
+
+/* Tâches ratées / tableau de la honte */
+.card.expired { border-color: #f3c6c6; background: #fff6f5; }
+.tag.bad { background: #fde8e8; color: #b42318; }
+.rank.bad { color: #b42318; }
+.seg button.shame { color: #b42318; }

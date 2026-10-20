@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CalendarDays, Dices, Repeat, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, CalendarDays, Dices, Hourglass, Repeat, Trash2 } from 'lucide-react'
 import type { Member, Recurrence, Task } from '../lib/types'
 import { Avatar } from '../components/Avatar'
 import { hhmm, labelDate, labelDays, todayParis } from '../lib/presence'
@@ -37,7 +37,7 @@ export function Family({ me, members, tasks, recurrences, onTrade, onDeleteRecur
                 <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                   <span>{r.title}</span>
                   <span className="small muted" style={{ fontWeight: 600 }}>
-                    {labelDays(r.days)} à {hhmm(r.at_time)} ·{' '}
+                    {labelDays(r.days)} à {hhmm(r.at_time)}{r.deadline_time ? <> · <Hourglass size={12} style={{ verticalAlign: -1 }} /> avant {hhmm(r.deadline_time)}</> : null} ·{' '}
                     {r.mode === 'roulette' ? <><Dices size={13} style={{ verticalAlign: -2 }} /> roulette entre </> : ''}
                     {r.members.map((id) => byId.get(id)?.name ?? '?').join(', ')}
                   </span>
