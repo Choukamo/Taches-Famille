@@ -136,3 +136,4 @@ textarea.input { min-height: 72px; resize: vertical; }
 .tag.bad { background: #fde8e8; color: #b42318; }
 .rank.bad { color: #b42318; }
 .seg button.shame { color: #b42318; }
+.board-row { width: 100%; text-align: left; padding: 0; background: none; border: 0; color: inherit; font: inherit; }
