@@ -300,7 +300,8 @@ alter publication supabase_realtime add table public.task_assignees;
 alter publication supabase_realtime add table public.members;
 
 -- ---------- Données de départ ----------
-insert into public.family (id, name, code) values (1, 'Famille', '144272') on conflict (id) do nothing;
+-- Le vrai code famille est défini directement dans la base (pas dans le dépôt public)
+insert into public.family (id, name, code) values (1, 'Famille', 'A-CHANGER') on conflict (id) do nothing;
 insert into public.members (name, role, color, sort_order) values
   ('Flora', 'parent', '#d9486f', 1),
   ('John',  'parent', '#2f6fed', 2),
