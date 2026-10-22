@@ -83,7 +83,7 @@ textarea.input { min-height: 72px; resize: vertical; }
 
 .banner { border-radius: 14px; padding: 12px 14px; background: #fff7e8; border: 1px solid #f3dcb5; color: #6a4a12; display: flex; gap: 10px; align-items: flex-start; }
 .banner.info { background: var(--accent-soft); border-color: #bfe6dd; color: var(--accent-ink); }
-.banner.offline-banner { margin: 10px 14px 0; font-size: 14px; }
+.banner.offline-banner { position: sticky; top: var(--safe-top); z-index: 5; margin: 10px 14px 0; font-size: 14px; }
 .banner.error { background: #fbe6e4; border-color: #f1c2be; color: var(--danger); }
 
 .member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
