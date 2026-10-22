@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ListChecks, Plus, Trophy, UserRound, Users } from 'lucide-react'
 import { supabase, ensureSession } from './lib/supabase'
+import { friendly } from './lib/errors'
 import type { Member, Preset, Recurrence, Task, Trade } from './lib/types'
 import { Family } from './screens/Family'
 import { TradeSheet } from './components/TradeSheet'
@@ -32,20 +33,24 @@ export default function App() {
   const membersMap = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
 
   const loadAll = useCallback(async () => {
-    const [{ data: ms }, { data: ts }, { data: trs }, { data: ps }, { data: rs }] = await Promise.all([
+    const [ms, ts, trs, ps, rs] = await Promise.all([
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('tasks').select('*, task_assignees(*)').order('scheduled_date').order('created_at'),
       supabase.from('trades').select('*').order('created_at', { ascending: false }),
       supabase.from('task_presets').select('*').order('sort_order').order('created_at'),
       supabase.from('recurrences').select('*').eq('active', true).order('at_time').order('created_at'),
     ])
-    setMembers((ms ?? []) as Member[])
-    setTasks((ts ?? []) as Task[])
-    setTrades((trs ?? []) as Trade[])
-    setPresets((ps ?? []) as Preset[])
-    setRecurrences((rs ?? []) as Recurrence[])
+    // Si une requête échoue (pas de réseau), on garde ce qu'on affichait déjà.
+    const failed = ms.error ?? ts.error ?? trs.error ?? ps.error ?? rs.error
+    if (failed) throw new Error(failed.message)
+    setMembers((ms.data ?? []) as Member[])
+    setTasks((ts.data ?? []) as Task[])
+    setTrades((trs.data ?? []) as Trade[])
+    setPresets((ps.data ?? []) as Preset[])
+    setRecurrences((rs.data ?? []) as Recurrence[])
     setRefreshKey((k) => k + 1)
   }, [])
+  const refresh = useCallback(() => loadAll().catch(() => {}), [loadAll])
 
   const refreshPush = useCallback(async () => setPushState(await getPushState()), [])
 
@@ -53,7 +58,8 @@ export default function App() {
     (async () => {
       try {
         await ensureSession()
-        const { data: myId } = await supabase.rpc('current_member_id')
+        const { data: myId, error: idError } = await supabase.rpc('current_member_id')
+        if (idError) throw new Error(idError.message)
         if (myId) {
           await loadAll()
           const { data: m } = await supabase.from('members').select('*').eq('id', myId).single()
@@ -61,7 +67,7 @@ export default function App() {
           refreshPush()
         }
       } catch (e) {
-        setFatal((e as Error).message)
+        setFatal(friendly((e as Error).message))
       } finally {
         setReady(true)
       }
@@ -72,17 +78,17 @@ export default function App() {
     if (!me) return
     const ch = supabase
       .channel('family')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => loadAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => loadAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => loadAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, () => loadAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_presets' }, () => loadAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurrences' }, () => loadAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_presets' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurrences' }, () => refresh())
       .subscribe()
-    const onVisible = () => { if (document.visibilityState === 'visible') { loadAll(); refreshPush() } }
+    const onVisible = () => { if (document.visibilityState === 'visible') { refresh(); refreshPush() } }
     document.addEventListener('visibilitychange', onVisible)
     return () => { supabase.removeChannel(ch); document.removeEventListener('visibilitychange', onVisible) }
-  }, [me, loadAll, refreshPush])
+  }, [me, refresh, refreshPush])
 
   useEffect(() => {
     if (me) setMe(membersMap.get(me.id) ?? me)
@@ -91,7 +97,7 @@ export default function App() {
 
   const onJoined = async (m: Member) => {
     setMe(m)
-    await loadAll()
+    await refresh()
     refreshPush()
   }
 
@@ -110,18 +116,22 @@ export default function App() {
   const complete = async (t: Task) => {
     setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, status: 'done', done_by: me!.id, done_at: new Date().toISOString() } : x)))
     const { error } = await supabase.rpc('complete_task', { p_task_id: t.id })
-    if (error) alert(error.message)
-    loadAll()
+    if (error) {
+      setTasks((ts) => ts.map((x) => (x.id === t.id ? t : x)))
+      alert(friendly(error.message))
+    }
+    refresh()
   }
   const reopen = async (t: Task) => {
     const { error } = await supabase.rpc('reopen_task', { p_task_id: t.id })
-    if (error) alert(error.message)
-    loadAll()
+    if (error) alert(friendly(error.message))
+    refresh()
   }
   const remove = async (t: Task) => {
     if (!confirm(`Supprimer « ${t.title} » ?`)) return
-    await supabase.from('tasks').delete().eq('id', t.id)
-    loadAll()
+    const { error } = await supabase.from('tasks').delete().eq('id', t.id)
+    if (error) alert(friendly(error.message))
+    refresh()
   }
   const replay = (t: Task) => setWheel({ task: t, auto: false })
 
@@ -131,29 +141,30 @@ export default function App() {
     if (error) throw new Error(error.message)
     supabase.functions.invoke('send-reminders', { body: { trade_id: (data as Trade).id } }).catch(() => {})
     setTradeWith(null)
-    await loadAll()
+    await refresh()
     setTab('tasks')
   }
   const respondTrade = async (t: Trade, accept: boolean) => {
-    const { error } = await supabase.rpc('respond_trade', { p_trade: t.id, p_accept: accept })
-    if (error) alert(error.message)
+    const { data, error } = await supabase.rpc('respond_trade', { p_trade: t.id, p_accept: accept })
+    if (error) alert(friendly(error.message))
+    else if (accept && (data as Trade | null)?.status === 'cancelled') alert('Ces tâches ne sont plus disponibles, l\'échange est annulé.')
     else supabase.functions.invoke('send-reminders', { body: { trade_id: t.id } }).catch(() => {})
-    loadAll()
+    refresh()
   }
   const deleteRecurrence = async (r: Recurrence) => {
     if (!confirm(`Arrêter « ${r.title} » (${r.mode === 'roulette' ? 'roulette' : 'direct'}) ? Les tâches déjà créées restent.`)) return
     const { error } = await supabase.rpc('delete_recurrence', { p_id: r.id })
     if (error) alert(error.message)
-    loadAll()
+    refresh()
   }
   const cancelTrade = async (t: Trade) => {
     const { error } = await supabase.rpc('cancel_trade', { p_trade: t.id })
-    if (error) alert(error.message)
-    loadAll()
+    if (error) alert(friendly(error.message))
+    refresh()
   }
 
   const onCreated = (t: Task) => {
-    loadAll()
+    refresh()
     if (t.mode === 'roulette') setWheel({ task: t, auto: true })
     else setTab('tasks')
   }
@@ -170,7 +181,7 @@ export default function App() {
   }
 
   if (!ready) return <div className="app"><div className="center"><div className="spinner" /></div></div>
-  if (fatal) return <div className="app"><div className="screen"><div className="banner error">Problème de connexion : {fatal}</div></div></div>
+  if (fatal) return <div className="app"><div className="screen stack"><div className="banner error">Problème de connexion : {fatal}</div><button className="btn big block" onClick={() => location.reload()}>Réessayer</button></div></div>
   if (!me) return <div className="app"><Join onJoined={onJoined} /></div>
 
   return (
@@ -181,11 +192,11 @@ export default function App() {
           onRespondTrade={respondTrade} onCancelTrade={cancelTrade} />
       )}
       {tab === 'family' && <Family me={me} members={members} tasks={tasks} recurrences={recurrences} onTrade={setTradeWith} onDeleteRecurrence={deleteRecurrence} />}
-      {tab === 'new' && <NewTask me={me} members={members} presets={presets} onCreated={onCreated} onRecurrenceCreated={() => { loadAll(); setTab('family') }} />}
+      {tab === 'new' && <NewTask me={me} members={members} presets={presets} onCreated={onCreated} onRecurrenceCreated={() => { refresh(); setTab('family') }} />}
       {tab === 'board' && <Leaderboard members={membersMap} tasks={tasks} refreshKey={refreshKey} />}
       {tab === 'me' && (
         <Settings me={me} pushState={pushState} onEnablePush={onEnablePush} onDisablePush={onDisablePush}
-          onSaved={(m) => { setMe(m); loadAll() }} onLeave={leave} />
+          onSaved={(m) => { setMe(m); refresh() }} onLeave={leave} />
       )}
 
       {tradeWith && (

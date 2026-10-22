@@ -35,6 +35,7 @@ p { margin: 0; }
 .spread { justify-content: space-between; }
 .wrap { flex-wrap: wrap; }
 
+.card h3, .pick, .member-block h3 { overflow-wrap: anywhere; }
 .card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
 .card.done { opacity: 0.72; }
 .card.mine { border-color: var(--accent); box-shadow: 0 6px 20px rgba(31, 157, 138, 0.14); }

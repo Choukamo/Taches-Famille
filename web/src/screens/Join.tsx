@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { friendly } from '../lib/errors'
 import type { Member } from '../lib/types'
 import { Avatar } from '../components/Avatar'
 
@@ -26,7 +27,12 @@ export function Join({ onJoined }: { onJoined: (m: Member) => void }) {
     const { data, error } = await supabase.rpc('join_family', { p_code: code.trim(), p_member_id: picked })
     setBusy(false)
     if (error) {
-      setError(error.message.includes('Code') ? 'Code famille incorrect.' : error.message)
+      setError(friendly(error.message))
+      return
+    }
+    // Un code faux renvoie une ligne vide (tous les champs à null)
+    if (!data || !(data as Member).id) {
+      setError('Code famille incorrect.')
       return
     }
     onJoined(data as Member)

@@ -53,6 +53,9 @@ export function Wheel({ candidates, winners, title, onClose, autoSpin = true }: 
   const ref = useRef<HTMLCanvasElement>(null)
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'done'>('idle')
   const angleRef = useRef(0)
+  const rafRef = useRef(0)
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
   useEffect(() => {
     const c = ref.current
@@ -83,13 +86,13 @@ export function Wheel({ candidates, winners, title, onClose, autoSpin = true }: 
       const eased = 1 - Math.pow(1 - p, 3)
       angleRef.current = start + total * eased
       drawWheel(c, candidates, angleRef.current)
-      if (p < 1) requestAnimationFrame(tick)
+      if (p < 1) rafRef.current = requestAnimationFrame(tick)
       else {
         setPhase('done')
         if (navigator.vibrate) navigator.vibrate([60, 40, 60])
       }
     }
-    requestAnimationFrame(tick)
+    rafRef.current = requestAnimationFrame(tick)
   }
 
   useEffect(() => {

@@ -128,7 +128,7 @@ export function NewTask({ me, members, presets, onCreated, onRecurrenceCreated }
             </button>
           </div>
         )}
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ou écris autre chose…" />
+        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ou écris autre chose…" maxLength={80} />
         {title.trim().length > 1 && !titleIsPreset && (
           <button className="link-btn" onClick={savePreset}><BookmarkPlus size={16} /> Garder « {title.trim()} » dans la liste</button>
         )}

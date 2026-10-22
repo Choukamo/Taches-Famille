@@ -1,0 +1,10 @@
+import { chromium } from 'playwright'
+const out = (k, v) => console.log(JSON.stringify({ [k]: v }))
+const b = await chromium.connectOverCDP('http://localhost:29229'); const ctx = b.contexts()[0]; const p = await ctx.newPage()
+await p.setViewportSize({ width: 390, height: 844 })
+await p.goto(process.env.BASE || 'http://localhost:5173/'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(3000)
+await p.locator('.member-tile', { hasText: 'Test A' }).click(); await p.getByPlaceholder(/code/i).fill('000000'); await p.getByRole('button', { name: /Entrer/ }).click(); await p.waitForTimeout(2500)
+out('5a_wrong_code_banner', (await p.locator('.banner').allInnerTexts()).join('|')); out('5a_still_join', await p.locator('.member-tile').count())
+await p.getByPlaceholder(/code/i).fill(process.env.CODE); await p.getByRole('button', { name: /Entrer/ }).click(); await p.waitForTimeout(3000)
+out('5b_joined_h1', await p.locator('h1').first().innerText())
+await p.close(); process.exit(0)
