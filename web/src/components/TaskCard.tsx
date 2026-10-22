@@ -1,4 +1,4 @@
-import { Check, Dices, RotateCcw, Trash2, Bell, CalendarDays, Hourglass, Skull } from 'lucide-react'
+import { Check, Dices, RotateCcw, Trash2, Bell, CalendarDays, Hourglass, Skull, UserPen } from 'lucide-react'
 import type { Member, Task } from '../lib/types'
 import { Avatar, Avatars } from './Avatar'
 import { labelDate, labelDeadline, labelInterval, todayParis } from '../lib/presence'
@@ -40,6 +40,7 @@ export function TaskCard({ task, members, meId, onComplete, onReopen, onDelete, 
           </span>
         )}
         <span className={`tag ${late ? 'warn' : ''}`}><CalendarDays size={13} /> {labelDate(task.scheduled_date)}</span>
+        {creator && <span className="tag"><UserPen size={13} /> {creator.id === meId ? 'Par toi' : `Par ${creator.name}`}</span>}
         {expired && <span className="tag bad"><Skull size={13} /> Ratée</span>}
         {!closed && task.deadline && <span className="tag bad"><Hourglass size={13} /> avant {labelDeadline(task.deadline)}</span>}
         {!closed && <span className="tag"><Bell size={13} /> {labelInterval(task.interval_minutes)}</span>}

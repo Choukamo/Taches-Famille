@@ -125,6 +125,8 @@ async function processExpired(members: Map<string, Member>, subs: Sub[], now: Da
     const names = listNames(who, members);
     for (const m of members.values()) {
       const mine = who.includes(m.id);
+      // Absent cette semaine (ou hors horaires pour les autres) : pas de notif
+      if (mine ? !isPresentOn(m, parisParts(now).date) : !isAvailableNow(m, now)) continue;
       const title = mine ? "Trop tard, tâche ratée" : `${names} n'a pas fait sa tâche`;
       const body = mine
         ? `« ${t.title} » n'a pas été faite avant la limite. Direction le tableau de la honte…`
@@ -159,7 +161,7 @@ async function processTrades(onlyTradeId: string | null, members: Map<string, Me
       const body = tr.offered.length
         ? `${from.name} prend : ${list(tr.requested)}. En échange tu fais : ${list(tr.offered)}.`
         : `${from.name} se propose de faire à ta place : ${list(tr.requested)}.`;
-      const sent = await sendTo(to.id, subs, { title, body, tag: `trade-${tr.id}`, url: `./?trade=${tr.id}` });
+      const sent = isPresentOn(to, parisParts(now).date) ? await sendTo(to.id, subs, { title, body, tag: `trade-${tr.id}`, url: `./?trade=${tr.id}` }) : 0;
       await admin.from("trades").update({ notified_at: now.toISOString() }).eq("id", tr.id);
       logs.push({ member_id: to.id, task_id: null, kind: "trade", title, body });
       summary.push(`trade ${to.name} (${sent} appareil(s))`);
@@ -168,7 +170,7 @@ async function processTrades(onlyTradeId: string | null, members: Map<string, Me
       const ok = tr.status === "accepted";
       const title = ok ? `${to.name} a accepté ton échange` : `${to.name} a refusé ton échange`;
       const body = ok ? `Tu fais maintenant : ${list(tr.requested)}.` : `Pas d'échange pour : ${list(tr.requested)}.`;
-      const sent = await sendTo(from.id, subs, { title, body, tag: `trade-${tr.id}`, url: `./` });
+      const sent = isPresentOn(from, parisParts(now).date) ? await sendTo(from.id, subs, { title, body, tag: `trade-${tr.id}`, url: `./` }) : 0;
       await admin.from("trades").update({ result_notified_at: now.toISOString() }).eq("id", tr.id);
       logs.push({ member_id: from.id, task_id: null, kind: ok ? "trade_accepted" : "trade_declined", title, body });
       summary.push(`trade-${tr.status} ${from.name} (${sent} appareil(s))`);
