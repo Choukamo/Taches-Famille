@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ListChecks, Plus, Trophy, UserRound, Users } from 'lucide-react'
 import { supabase, ensureSession } from './lib/supabase'
 import { friendly } from './lib/errors'
+import { saveCache, loadCache, clearCache, cacheAge } from './lib/cache'
 import type { Member, Preset, Recurrence, Task, Trade } from './lib/types'
 import { Family } from './screens/Family'
 import { TradeSheet } from './components/TradeSheet'
@@ -18,6 +19,7 @@ type Tab = 'tasks' | 'family' | 'new' | 'board' | 'me'
 export default function App() {
   const [ready, setReady] = useState(false)
   const [fatal, setFatal] = useState<string | null>(null)
+  const [offline, setOffline] = useState(false)
   const [me, setMe] = useState<Member | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -49,6 +51,8 @@ export default function App() {
     setPresets((ps.data ?? []) as Preset[])
     setRecurrences((rs.data ?? []) as Recurrence[])
     setRefreshKey((k) => k + 1)
+    setOffline(false)
+    saveCache({ members: ms.data, tasks: ts.data, trades: trs.data, presets: ps.data, recurrences: rs.data })
   }, [])
   const refresh = useCallback(() => loadAll().catch(() => {}), [loadAll])
 
@@ -64,10 +68,18 @@ export default function App() {
           await loadAll()
           const { data: m } = await supabase.from('members').select('*').eq('id', myId).single()
           setMe(m as Member)
+          saveCache({ me: m })
           refreshPush()
         }
       } catch (e) {
-        setFatal(friendly((e as Error).message))
+        // Pas de réseau : on montre la dernière copie connue, en lecture seule
+        const c = loadCache()
+        if (c?.me) {
+          setMe(c.me); setMembers(c.members ?? []); setTasks(c.tasks ?? []); setTrades(c.trades ?? []); setPresets(c.presets ?? []); setRecurrences(c.recurrences ?? [])
+          setOffline(true)
+        } else {
+          setFatal(friendly((e as Error).message))
+        }
       } finally {
         setReady(true)
       }
@@ -173,6 +185,7 @@ export default function App() {
     if (!confirm('Changer de personne sur ce téléphone ?')) return
     await disablePush().catch(() => {})
     await supabase.rpc('leave_family')
+    clearCache()
     setMe(null)
     setTasks([])
     setTrades([])
@@ -186,6 +199,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {offline && <div className="banner warn offline-banner">Hors-ligne : tu vois la dernière version connue{cacheAge() ? ` (${cacheAge()})` : ''}. Les actions ne marcheront pas tant que le réseau n'est pas revenu.</div>}
       {tab === 'tasks' && (
         <TaskList me={me} members={membersMap} tasks={tasks} trades={trades} pushState={pushState} onEnablePush={onEnablePush}
           onComplete={complete} onReopen={reopen} onDelete={remove} onReplay={replay} onGoSettings={() => setTab('me')}
